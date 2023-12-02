@@ -6,9 +6,7 @@ using System.Threading;
 
 class Program
 {
-
-    private TcpListener server = new TcpListener(IPAddress.Any, 48163);
-
+    private static TcpListener server = new TcpListener(IPAddress.Any, 48163);
 
     static void Main(string[] args)
     {
@@ -27,7 +25,7 @@ class Program
             }
             else
             {
-                Console.WriteLine("nuh uh retard");
+                Console.WriteLine("Invalid role. Please enter 'server' or 'client'.");
                 Main(args);
             }
         }
@@ -35,7 +33,6 @@ class Program
 
     static void StartServer()
     {
-        TcpListener server = new TcpListener(IPAddress.Any, 48163);
         Thread listenerThread = new Thread(new ThreadStart(ListenForClients));
         listenerThread.Start();
 
@@ -54,11 +51,10 @@ class Program
         }
         Console.WriteLine("Server running, press any key to exit");
         Console.ReadKey();
-
     }
 
     static void ListenForClients()
-    { 
+    {
         server.Start();
 
         while (true)
@@ -68,7 +64,6 @@ class Program
             clientThread.Start(tcpClient);
         }
     }
-
 
     static void HandleClientComm(object clientObj)
     {
