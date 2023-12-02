@@ -11,6 +11,7 @@ class Program
     static void Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
+        Console.Title = "////////Web-Socket/////////      :3";
 
         Console.Write("Enter 'server' or 'client': ");
         string? role = Console.ReadLine(); // Mark as nullable if needed
@@ -51,8 +52,8 @@ class Program
                 Console.WriteLine($"  {ipAddress}");
             }
         }
-        Console.WriteLine("Server running, press any key to exit");
-        Console.ReadKey();
+        Console.WriteLine("Server running . . .");
+        Console.ReadLine();
     }
 
     static void ListenForClients()
@@ -87,7 +88,7 @@ class Program
             }
             catch
             {
-                break;
+                break; 
             }
 
             if (bytesRead == 0)
