@@ -10,6 +10,8 @@ class Program
 
     static void Main(string[] args)
     {
+        Console.OutputEncoding = Encoding.UTF8;
+
         Console.Write("Enter 'server' or 'client': ");
         string? role = Console.ReadLine(); // Mark as nullable if needed
 
@@ -91,7 +93,7 @@ class Program
             if (bytesRead == 0)
                 break;
 
-            string clientMessage = Encoding.ASCII.GetString(message, 0, bytesRead);
+            string clientMessage = Encoding.UTF8.GetString(message, 0, bytesRead);
             Console.WriteLine($"Received message from {tcpClient.Client.RemoteEndPoint}: {clientMessage}");
         }
 
@@ -120,7 +122,7 @@ class Program
 
                 if (message != null) // Check for null before dereferencing
                 {
-                    byte[] data = Encoding.ASCII.GetBytes(message);
+                    byte[] data = Encoding.UTF8.GetBytes(message);
                     stream.Write(data, 0, data.Length);
                 }
             }
