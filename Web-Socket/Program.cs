@@ -2,24 +2,57 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using Newtonsoft.Json;
 
+public class User
+{
+    public string userName;
+    public string password;
+    public EndPoint? endPoint;
+    public TcpClient? tcpClient = null;
+    public bool connected = true;
+    public DateTime lastConnected = DateTime.Now;
+    public DateTime creationDate = DateTime.Now;
+    public int messagesSent = 0;
+    public float hoursConnected = 0;
+}
+
+public class Server
+{
+    public string serverName;
+    public IPEndPoint? endPoint;
+    public TcpListener? tcpListener;
+    public Tuple<int, int, int> softwareVersion = Program.softwareVersion;
+    public DateTime creationDate = DateTime.Now;
+    public int? userCount;
+    public int? connectedUserCount;
+    public int? messageCount = 0;
+    public float hoursOnline = 0;
+}
 
 
 class Program
 {
-    private static TcpListener server = new TcpListener(IPAddress.Any, 48163);
+    public static string appDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Web-Socket");
 
-    private static List<TcpClient>? ClientList = new List<TcpClient>();
+    public static Tuple<int, int, int> softwareVersion = Tuple.Create(1, 1, 0);
+
+    private static TcpListener Server = new TcpListener(IPAddress.Any, 48163);
+
+    //private static List<TcpClient>? ClientList = new List<TcpClient>();
 
     // Define event args for server updates
 
-    public class ServerEventArgs : EventArgs
+    // Depricated event system
+
+    /*public class ServerEventArgs : EventArgs
     {
         public string UpdateMessage { get; set; }
         
@@ -61,6 +94,11 @@ class Program
         await SendUpdateToClients(jsonMessage);
     }
 
+            // Method to trigger the ServerUpdate event
+        static void OnServerUpdate(ServerEventArgs e)
+        {
+            ServerUpdate?.Invoke(null, e);
+        }
 
     private static async Task SendUpdateToClients(string jsonMessage)
     {
@@ -81,13 +119,20 @@ class Program
                 Console.WriteLine($" | ! | Exception while sending update to {client.Client.RemoteEndPoint}: {ex.Message}");
             }
         }
-    }
+    }*/
 
 
     static void Main(string[] args)
     {
+        if (!Directory.Exists(appDataFolder))
+        {
+            Directory.CreateDirectory(appDataFolder);
+            Console.WriteLine($" | i | Created app data folder: {appDataFolder}");
+            Console.WriteLine($" | ☺ | Welcome to Web-Socket, {Environment.UserName}! ");
+        }
+
         Console.OutputEncoding = Encoding.UTF8;
-        Console.Title = "////////Web-Socket/////////      :3";
+        Console.Title = "////////Web-Socket/////////     | :3 |";
 
         Console.Write("Enter 'server' or 'client': ");
         string? role = Console.ReadLine(); // Mark as nullable if needed
@@ -112,14 +157,22 @@ class Program
 
     static void StartServer()
     {
+
+        Console.WriteLine("/////////֎ role : server ֎/////////");
+
+        string serverDataFolder = Path.Combine(appDataFolder, "ServerData");
+        if (!Directory.Exists(serverDataFolder))
+        {
+            ServerCreationWizard();
+        }
+
+
         Thread listenerThread = new Thread(new ThreadStart(ListenForClients));
         listenerThread.Start();
 
         // Get local IP addresses of the machine
         IPAddress[] localIPs = Dns.GetHostAddresses(Dns.GetHostName());
 
-        // Display the IP addresses in the console
-        Console.WriteLine("/////////֎ role : server ֎/////////");
         Console.WriteLine("Server IP addresses:");
         foreach (IPAddress ipAddress in localIPs)
         {
@@ -137,18 +190,98 @@ class Program
         Console.ReadLine();
     }
 
+    static void ServerCreationWizard(bool ServerDataFolderExists = false)
+    {
+        string serverDataFolder = Path.Combine(appDataFolder, "ServerData");
+        Console.Write(" | ! | no server data found. Would you like to create one? (y/n): ");
+        if (Console.ReadKey().Key == ConsoleKey.Y)
+        {
+            Console.WriteLine("\n");
+            try
+            {
+                string? serverName;
+                if (!ServerDataFolderExists)
+                {
+                    Directory.CreateDirectory(serverDataFolder);
+                    Console.WriteLine($" | i | Created server data folder: {serverDataFolder}");
+                }
+
+                Console.WriteLine(" | i | Server creation wizard started. All settings can be changed later. WARNING: IF YOU HAVE SERVERDATA SAVE IT ELSEWHERE AND CLOSE THE WINDOW NOW.");
+
+                Console.Write("What should your server be called? : ");
+                serverName = Console.ReadLine();
+                if (serverName == null || serverName == "") { throw new Exception("| № | dumbass, you entered nothing"); }
+
+                IPHostEntry host = Dns.GetHostEntry(Dns.GetHostName());
+                IPAddress localIpAddress = host.AddressList[0];
+                IPEndPoint localEndPoint = new IPEndPoint(localIpAddress, 0);
+
+                Server server = new Server
+                {
+                    serverName = serverName,
+                    endPoint = localEndPoint,
+                    tcpListener = Server
+                };
+
+                Console.WriteLine($"serverName : {serverName}");
+                Console.WriteLine($"endPoint : {localEndPoint}");
+                Console.WriteLine($"tcpListener : {localEndPoint}");
+                Console.WriteLine($"softwareVersion : {Program.softwareVersion}");
+                Console.WriteLine($"creationDate : {DateTime.Now}");
+
+                string server1 = Path.Combine(serverDataFolder, $"{serverName}");
+                string jsonFilePath = Path.Combine(server1, $"{serverName}.json");
+                Directory.CreateDirectory(server1);
+                Console.WriteLine($" | i | Created {serverName} data folder: {server1}");
+
+                string json = "Default json string";
+
+                try
+                {
+                    Console.WriteLine(" | i | Serializing server object . . .");
+                    json = JsonEncodingTools.SerializeToJson<Server>(server); // this is where the code always fucks up.
+                }
+                catch (Exception ex) { Console.WriteLine($" | ! | Exception while serializing the server object to JSON : {ex.GetType().Name} - {ex.Message}"); }
+
+                try
+                {
+                    Console.WriteLine(" | i | Saving JSON to file . . .");
+                    JsonEncodingTools.SaveJsonToFile(json, jsonFilePath);
+                }
+                catch (Exception ex) { Console.WriteLine($" | ! | Exception while saving the serialized json to a file: {ex.GetType().Name} - {ex.Message} (file path: {jsonFilePath})"); }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" | ! | Something went wrong :{ex.Message}, try again? (y/n)");
+                if (Console.ReadKey().Key == ConsoleKey.Y) 
+                {
+                    if (Directory.Exists(serverDataFolder))
+                    {
+                        Directory.Delete(serverDataFolder, true);
+                    }
+                    ServerCreationWizard(); 
+                }
+                else
+                {
+                    Main(new string[] { });
+                }
+            }
+        }
+    }
+
     static void ListenForClients()
     {
-        server.Start();
+        Server.Start();
 
         while (true)
         {
-            TcpClient tcpClient = server.AcceptTcpClient();
+            TcpClient tcpClient = Server.AcceptTcpClient();
             Thread clientThread = new Thread(new ParameterizedThreadStart(HandleClientComm));
             clientThread.Start(tcpClient);
         }
     }
 
+    
     static void HandleClientComm(object clientObj)
     {
         TcpClient tcpClient = (TcpClient)clientObj;
@@ -157,7 +290,7 @@ class Program
         byte[] message = new byte[4096];
         int bytesRead;
 
-        ClientList.Add(tcpClient);
+        //ClientList.Add(tcpClient);
 
         Console.WriteLine($" | ☺ | Client connected: {tcpClient.Client.RemoteEndPoint}");
 
@@ -187,7 +320,7 @@ class Program
             Console.WriteLine($"Received message from {tcpClient.Client.RemoteEndPoint}: {clientMessage}");
         }
 
-        ClientList.Remove(tcpClient);
+        //ClientList.Remove(tcpClient);
 
         Console.WriteLine($"Client disconnected: {tcpClient.Client.RemoteEndPoint}");
 
@@ -208,7 +341,7 @@ class Program
             Console.Write("Enter the server IP address: (press enter to connect to self)");
             string? ipAddress = Console.ReadLine(); // Mark as nullable if needed
 
-            if (ipAddress != null) // Check for null before dereferencing
+            if (ipAddress != null || ipAddress == "") // Check for null before dereferencing
             {
 
                 TryConnectingAgain(ipAddress);
@@ -250,7 +383,7 @@ class Program
             }
             else
             {
-                Console.WriteLine("Invalid IP address.");
+                Console.WriteLine(" | № | Dumbass, you entered nothing.");
                 TryConnectingToASpecifiedServer();
             }
         }
@@ -262,12 +395,61 @@ class Program
             {
                 //tryconnectingagain();
             }
-        }
-
-        // Method to trigger the ServerUpdate event
-        static void OnServerUpdate(ServerEventArgs e)
-        {
-            ServerUpdate?.Invoke(null, e);
+            else
+            {
+                Main(new string[] { });
+            }
         }
     }
 }
+
+public static class JsonEncodingTools
+{
+    public static string SerializeToJson<T>(T obj)
+    {
+        // Serialize the object to JSON
+        return JsonConvert.SerializeObject(obj, Formatting.Indented);
+    }
+
+    public static T DeserializeFromJson<T>(string json)
+    {
+        // Deserialize JSON to the object
+        return JsonConvert.DeserializeObject<T>(json);
+    }
+
+    public static void SaveJsonToFile(string json, string filePath)
+    {
+        // Save the JSON to a file
+        File.WriteAllText(filePath, json);
+    }
+
+    public static string ReadJsonFromFile(string filePath)
+    {
+        // Read the JSON from a file
+        return File.ReadAllText(filePath);
+    }
+}
+
+/*
+public static async Task SendUpdateToClients(string jsonMessage)
+{
+    foreach (var client in ClientList)
+    {
+        try
+        {
+            NetworkStream stream = client.GetStream();
+            byte[] data = Encoding.UTF8.GetBytes(jsonMessage);
+            await stream.WriteAsync(data, 0, data.Length);
+        }
+        catch (SocketException ex)
+        {
+            Console.WriteLine($" | ! | SocketException while sending update to {client.Client.RemoteEndPoint}: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($" | ! | Exception while sending update to {client.Client.RemoteEndPoint}: {ex.Message}");
+        }
+    }
+}
+}
+*/
