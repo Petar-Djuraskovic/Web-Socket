@@ -27,14 +27,43 @@ public class User
 public class Server
 {
     public string serverName;
-    public IPEndPoint? endPoint;
-    public TcpListener? tcpListener;
-    public Tuple<int, int, int> softwareVersion = Program.softwareVersion;
+    public System.Net.IPEndPoint? endPoint;
+    public System.Net.Sockets.TcpListener? tcpListener;
+    public Tuple<int, int, int> softwareVersion = new Tuple<int, int, int>(1, 1, 0);
     public DateTime creationDate = DateTime.Now;
     public int? userCount;
     public int? connectedUserCount;
     public int? messageCount = 0;
     public float hoursOnline = 0;
+
+    [JsonIgnore]
+    public string? IPAddressString
+    {
+        get
+        {
+            return endPoint?.Address.ToString();
+        }
+    }
+
+    [JsonProperty("IPAddressString")]
+    private string? IPAddressStringForSerialization
+    {
+        get
+        {
+            return IPAddressString;
+        }
+        set
+        {
+            if (value != null)
+            {
+                System.Net.IPAddress ipAddress;
+                if (System.Net.IPAddress.TryParse(value, out ipAddress))
+                {
+                    endPoint = new System.Net.IPEndPoint(ipAddress, endPoint?.Port ?? 0);
+                }
+            }
+        }
+    }
 }
 
 
@@ -235,11 +264,18 @@ class Program
                 Console.WriteLine($" | i | Created {serverName} data folder: {server1}");
 
                 string json = "Default json string";
+                string? ipAddressString = server.IPAddressString;
 
                 try
                 {
                     Console.WriteLine(" | i | Serializing server object . . .");
-                    json = JsonEncodingTools.SerializeToJson<Server>(server); // this is where the code always fucks up.
+
+                    // Serialize the Server object to JSON
+                    json = JsonConvert.SerializeObject(server, Formatting.Indented, new JsonSerializerSettings
+                    {
+                        // Use a custom converter for IPAddress serialization
+                        Converters = { new IPAddressJsonConverter() }
+                    });
                 }
                 catch (Exception ex) { Console.WriteLine($" | ! | Exception while serializing the server object to JSON : {ex.GetType().Name} - {ex.Message}"); }
 
@@ -248,7 +284,7 @@ class Program
                     Console.WriteLine(" | i | Saving JSON to file . . .");
                     JsonEncodingTools.SaveJsonToFile(json, jsonFilePath);
                 }
-                catch (Exception ex) { Console.WriteLine($" | ! | Exception while saving the serialized json to a file: {ex.GetType().Name} - {ex.Message} (file path: {jsonFilePath})"); }
+                catch (Exception ex) { Console.WriteLine($" | ! | Exception while saving the json to a file: {ex.GetType().Name} - {ex.Message} (file path: {jsonFilePath})"); }
             }
             catch (Exception ex)
             {
@@ -427,6 +463,33 @@ public static class JsonEncodingTools
     {
         // Read the JSON from a file
         return File.ReadAllText(filePath);
+    }
+}
+
+public class IPAddressJsonConverter : JsonConverter<IPAddress>
+{
+    public override IPAddress ReadJson(JsonReader reader, Type objectType, IPAddress existingValue, bool hasExistingValue, JsonSerializer serializer)
+    {
+        if (reader.TokenType == JsonToken.String)
+        {
+            string ipAddressString = (string)reader.Value;
+            return IPAddress.Parse(ipAddressString);
+        }
+
+        throw new JsonSerializationException($"Unexpected token type: {reader.TokenType}");
+    }
+
+    public override void WriteJson(JsonWriter writer, IPAddress value, JsonSerializer serializer)
+    {
+        if (value != null)
+        {
+            string ipAddressString = value.ToString();
+            writer.WriteValue(ipAddressString);
+        }
+        else
+        {
+            writer.WriteNull();
+        }
     }
 }
 
